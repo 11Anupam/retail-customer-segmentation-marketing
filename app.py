@@ -10,16 +10,12 @@ st.set_page_config(page_title="Customer Segmentation", page_icon="🛍️", layo
 # --- Load Data ---
 rfm = pd.read_csv("rfm.csv")
 
-# ✅ FIX #1 — Strip whitespace & normalize segment names to avoid KeyError crashes
+# --- Clean Data ---
 rfm["Segment"] = rfm["Segment"].astype(str).str.strip()
-
-# ✅ FIX #3 — Clip Frequency to min 1 to avoid plotly scatter size=0 crash
 rfm["Frequency"] = rfm["Frequency"].clip(lower=1)
-
-# ✅ FIX #4 — Cast CustomerID to int to avoid ugly 14911.0 in table
 rfm["CustomerID"] = rfm["CustomerID"].astype(int)
 
-# --- Config Dicts ---
+# --- Config ---
 colors = {
     "Champions": "#2ecc71",
     "Loyal Customers": "#3498db",
@@ -46,21 +42,22 @@ st.title("🛍️ Customer Segmentation Dashboard")
 st.markdown("#### RFM Analysis + K-Means Clustering | Anupam Gajbhiye · SIIB MBA-IB")
 st.markdown("---")
 
-# --- Dropdown at Top ---
+# --- Dropdown ---
 segment_options = ["All Segments"] + sorted(rfm["Segment"].unique().tolist())
 segment = st.selectbox("🎛️ Select a Customer Segment to Explore", segment_options)
 
 st.markdown("---")
 
-# --- Full summary always computed on ENTIRE dataset (never filtered) ---
+# --- Compute from RAW rfm always ---
+donut_data = rfm.groupby("Segment").size().reset_index(name="Customer Count")
+
 full_summary = rfm.groupby("Segment").agg(
     Recency=("Recency", "mean"),
     Frequency=("Frequency", "mean"),
     Monetary=("Monetary", "mean"),
-    Count=("CustomerID", "count")
 ).round(1).reset_index()
 
-# --- Filter ---
+# --- Filter for metrics + table only ---
 filtered = rfm if segment == "All Segments" else rfm[rfm["Segment"] == segment]
 
 # --- Banner ---
@@ -83,7 +80,6 @@ if segment != "All Segments":
 st.markdown("### 📊 Segment Metrics")
 col1, col2, col3, col4 = st.columns(4)
 
-# ✅ FIX #2 — Guard against empty filtered df to avoid NaN format crash
 if filtered.empty:
     col1.metric("👥 Total Customers", "0")
     col2.metric("🕐 Avg Recency (days)", "N/A")
@@ -105,15 +101,6 @@ col_left, col_right = st.columns(2)
 with col_left:
     st.markdown("### 🍩 Customer Distribution")
 
-    donut_data = rfm.groupby("Segment").size().reset_index(name="Customer Count")
-    #donut_data = full_summary[["Segment", "Count"]].copy()
-    #donut_data.columns = ["Segment", "Customer Count"]
-
-    # ✅ FIX #6 — Build pull_values from donut_data order, not external list
-    donut_data["pull"] = donut_data["Segment"].apply(
-        lambda x: 0.1 if x == segment else 0
-    )
-
     fig1 = px.pie(
         donut_data,
         values="Customer Count",
@@ -125,12 +112,14 @@ with col_left:
     fig1.update_traces(
         textposition="outside",
         textinfo="percent+label",
-        pull=donut_data["pull"].tolist()
+        pull=donut_data["Segment"].apply(
+            lambda x: 0.1 if x == segment else 0
+        ).tolist()
     )
     fig1.update_layout(
         showlegend=True,
         margin=dict(t=30, b=30, l=10, r=10),
-        height=350
+        height=380
     )
     st.plotly_chart(fig1, use_container_width=True)
 
@@ -161,7 +150,7 @@ with col_right:
     )
     fig3.update_layout(
         margin=dict(t=30, b=30),
-        height=350,
+        height=380,
         legend_title="Segment"
     )
     st.plotly_chart(fig3, use_container_width=True)
@@ -176,7 +165,6 @@ col_left2, col_right2 = st.columns(2)
 with col_left2:
     st.markdown("### 📈 RFM Metrics by Segment")
 
-    # ✅ FIX #7 — Use local bar_colors list, don't mutate full_summary
     bar_colors = full_summary["Segment"].apply(
         lambda x: colors.get(x, "#888888") if (segment == "All Segments" or x == segment) else "#444455"
     ).tolist()
@@ -193,7 +181,6 @@ with col_left2:
                 y=full_summary[metric],
                 marker_color=bar_colors,
                 text=full_summary[metric],
-                # ✅ FIX #5 — Use 'auto' instead of 'outside' to prevent clipping in subplots
                 textposition="auto",
                 showlegend=False
             ),
@@ -201,7 +188,7 @@ with col_left2:
         )
 
     fig2.update_layout(
-        height=380,
+        height=400,
         margin=dict(t=50, b=20),
         plot_bgcolor="rgba(0,0,0,0)",
         paper_bgcolor="rgba(0,0,0,0)"
@@ -211,8 +198,7 @@ with col_left2:
 with col_right2:
     st.markdown("### 🕸️ Segment Radar Chart")
 
-    # Use a clean copy for radar — not mutated full_summary
-    radar_df = full_summary[["Segment", "Recency", "Frequency", "Monetary"]].copy()
+    radar_df = full_summary.copy()
     radar_df["Freq_norm"] = radar_df["Frequency"] / radar_df["Frequency"].max()
     radar_df["Mon_norm"] = radar_df["Monetary"] / radar_df["Monetary"].max()
     radar_df["Rec_norm"] = 1 - (radar_df["Recency"] / radar_df["Recency"].max())
@@ -237,7 +223,7 @@ with col_right2:
 
     fig4.update_layout(
         polar=dict(radialaxis=dict(visible=True, range=[0, 1])),
-        height=380,
+        height=400,
         margin=dict(t=30, b=30),
         showlegend=True
     )
