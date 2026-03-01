@@ -105,8 +105,9 @@ col_left, col_right = st.columns(2)
 with col_left:
     st.markdown("### 🍩 Customer Distribution")
 
-    donut_data = full_summary[["Segment", "Count"]].copy()
-    donut_data.columns = ["Segment", "Customer Count"]
+    donut_data = rfm.groupby("Segment").size().reset_index(name="Customer Count")
+    #donut_data = full_summary[["Segment", "Count"]].copy()
+    #donut_data.columns = ["Segment", "Customer Count"]
 
     # ✅ FIX #6 — Build pull_values from donut_data order, not external list
     donut_data["pull"] = donut_data["Segment"].apply(
