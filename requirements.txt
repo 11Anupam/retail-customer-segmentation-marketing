@@ -1,6 +1,7 @@
 pandas
 numpy
 scikit-learn
-streamlit
 plotly
 openpyxl
+streamlit==1.28.0
+altair==4.2.2
